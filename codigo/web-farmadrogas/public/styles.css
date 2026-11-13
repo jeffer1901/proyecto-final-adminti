@@ -1,0 +1,80 @@
+:root {
+  --verde: #0a7d55;
+  --verde-osc: #075c3f;
+  --verde-claro: #e6f4ee;
+  --rojo: #c0392b;
+  --texto: #1f2a2e;
+  --gris: #66757a;
+  --borde: #dfe7e4;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; font-family: "Segoe UI", system-ui, -apple-system, sans-serif; color: var(--texto); background: #fafcfb; line-height: 1.5; }
+.contenedor { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+a { color: var(--verde); }
+
+.barra { background: #fff; border-bottom: 1px solid var(--borde); position: sticky; top: 0; z-index: 10; }
+.barra-in { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+.logo { font-weight: 700; font-size: 1.3rem; text-decoration: none; color: var(--verde-osc); }
+.cruz { color: #fff; background: var(--verde); border-radius: 6px; padding: 0 7px; margin-right: 4px; }
+nav a { margin-left: 22px; text-decoration: none; color: var(--texto); font-weight: 500; }
+nav a:hover { color: var(--verde); }
+
+.hero { background: linear-gradient(135deg, var(--verde-osc), var(--verde)); color: #fff; padding: 80px 0 70px; }
+.hero h1 { font-size: 2.6rem; margin: 6px 0 10px; }
+.hero .sub { font-size: 1.15rem; max-width: 560px; opacity: .92; }
+.etiqueta { text-transform: uppercase; letter-spacing: .08em; font-size: .8rem; opacity: .85; margin: 0; }
+.acciones { margin-top: 26px; display: flex; gap: 12px; flex-wrap: wrap; }
+
+.btn { display: inline-block; background: var(--verde); color: #fff; border: 0; padding: 11px 20px; border-radius: 8px; font-weight: 600; text-decoration: none; cursor: pointer; font-size: 1rem; }
+.hero .btn { background: #fff; color: var(--verde-osc); }
+.btn-sec { background: transparent; color: var(--verde); border: 2px solid currentColor; }
+.hero .btn-sec { background: transparent; color: #fff; }
+.btn:hover { filter: brightness(1.08); }
+
+.seccion { padding: 56px 20px; }
+h2 { color: var(--verde-osc); margin-top: 0; }
+.nota { color: var(--gris); }
+
+.tarjetas { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
+.tarjeta { background: #fff; border: 1px solid var(--borde); border-radius: 12px; padding: 22px; }
+.tarjeta h3 { margin: 8px 0 6px; }
+.tarjeta p { margin: 0; color: var(--gris); }
+.ico { font-size: 1.8rem; }
+
+.filtros { display: flex; gap: 12px; margin: 18px 0 22px; flex-wrap: wrap; }
+input, select, textarea { font: inherit; padding: 10px 12px; border: 1px solid var(--borde); border-radius: 8px; background: #fff; width: 100%; }
+.filtros input { flex: 2; min-width: 220px; }
+.filtros select { flex: 1; min-width: 180px; width: auto; }
+
+.grilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 16px; }
+.producto { background: #fff; border: 1px solid var(--borde); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; }
+.producto h3 { margin: 6px 0 2px; font-size: 1.05rem; }
+.cat { font-size: .75rem; text-transform: uppercase; letter-spacing: .05em; color: var(--verde); font-weight: 600; }
+.pres { color: var(--gris); margin: 0 0 10px; font-size: .92rem; }
+.precio { font-size: 1.3rem; font-weight: 700; margin: auto 0 8px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.disp, .formula { font-size: .78rem; padding: 3px 9px; border-radius: 99px; font-weight: 600; }
+.disp.si { background: var(--verde-claro); color: var(--verde-osc); }
+.disp.no { background: #fdecea; color: var(--rojo); }
+.formula { background: #fff4e0; color: #9a6400; }
+
+.dos-col { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start; }
+form.tarjeta { display: flex; flex-direction: column; gap: 10px; }
+.check { display: flex; align-items: center; gap: 8px; color: var(--gris); }
+.check input { width: auto; }
+.ok { color: var(--verde-osc); font-weight: 600; margin: 0; }
+.error { color: var(--rojo); font-weight: 600; margin: 0; }
+.json { background: #1f2a2e; color: #d6f5e7; padding: 12px; border-radius: 8px; font-size: .85rem; overflow-x: auto; white-space: pre-wrap; }
+.mensajes { padding-left: 18px; }
+.mensajes li { margin-bottom: 10px; }
+
+footer { background: var(--verde-osc); color: #dff2ea; padding: 22px 0; margin-top: 30px; font-size: .92rem; }
+footer p { margin: 4px 0; }
+.estado { opacity: .9; }
+
+@media (max-width: 720px) {
+  .dos-col { grid-template-columns: 1fr; }
+  .hero h1 { font-size: 2rem; }
+  nav a { margin-left: 12px; }
+}

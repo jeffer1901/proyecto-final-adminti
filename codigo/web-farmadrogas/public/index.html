@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Droguería Farmadrogas — Armenia, Quindío</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="config.js"></script>
+</head>
+<body>
+  <header class="barra">
+    <div class="contenedor barra-in">
+      <a href="#" class="logo"><span class="cruz">✚</span> Farmadrogas</a>
+      <nav>
+        <a href="#servicios">Servicios</a>
+        <a href="#catalogo">Catálogo</a>
+        <a href="#contacto">Contacto</a>
+      </nav>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="contenedor">
+      <p class="etiqueta">Droguería de barrio en <span data-dato="ciudad"></span></p>
+      <h1>Tu salud, cerca de casa</h1>
+      <p class="sub">Medicamentos, productos de cuidado personal y atención farmacéutica con el trato de siempre.</p>
+      <div class="acciones">
+        <a href="#catalogo" class="btn">Consultar productos</a>
+        <a id="btn-whatsapp" class="btn btn-sec" target="_blank" rel="noopener" hidden>Escríbenos por WhatsApp</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="servicios" class="contenedor seccion">
+    <h2>Servicios</h2>
+    <div class="tarjetas">
+      <div class="tarjeta"><div class="ico">💊</div><h3>Medicamentos</h3><p>Venta de medicamentos de venta libre y con fórmula médica.</p></div>
+      <div class="tarjeta"><div class="ico">🩺</div><h3>Toma de presión</h3><p>Control de tensión arterial sin costo adicional.</p></div>
+      <div class="tarjeta"><div class="ico">💉</div><h3>Inyectología</h3><p>Aplicación de inyectables con la fórmula correspondiente.</p></div>
+      <div class="tarjeta"><div class="ico">🛵</div><h3>Domicilios</h3><p>Llevamos tu pedido en el sector.</p></div>
+    </div>
+  </section>
+
+  <section id="catalogo" class="contenedor seccion">
+    <h2>Catálogo</h2>
+    <p class="nota">Consulta precios y disponibilidad antes de venir. La información viene de la base de datos de la droguería.</p>
+    <div class="filtros">
+      <input id="buscar" type="search" placeholder="Buscar producto… (ej. acetaminofén)">
+      <select id="categoria"><option value="">Todas las categorías</option></select>
+    </div>
+    <div id="productos" class="grilla"></div>
+    <p id="vacio" class="nota" hidden>No se encontraron productos.</p>
+  </section>
+
+  <section id="contacto" class="contenedor seccion dos-col">
+    <div>
+      <h2>Visítanos</h2>
+      <p><strong>Dirección:</strong> <span data-dato="direccion"></span></p>
+      <p><strong>Horario:</strong></p>
+      <ul id="horario"></ul>
+    </div>
+    <form id="form-contacto" class="tarjeta">
+      <h3>Déjanos un mensaje</h3>
+      <input name="nombre" placeholder="Tu nombre" required>
+      <input name="telefono" placeholder="Teléfono (opcional)">
+      <textarea name="mensaje" rows="3" placeholder="¿Qué necesitas?" required></textarea>
+      <button class="btn" type="submit">Enviar</button>
+      <p id="contacto-ok" class="ok" hidden>¡Mensaje recibido! Te contactaremos pronto.</p>
+    </form>
+  </section>
+
+  <footer>
+    <div class="contenedor">
+      <p>© 2026 Droguería Farmadrogas — <span data-dato="ciudad"></span></p>
+      <p id="estado" class="estado">Verificando servicio…</p>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

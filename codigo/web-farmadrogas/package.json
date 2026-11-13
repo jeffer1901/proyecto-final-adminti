@@ -1,0 +1,16 @@
+{
+  "name": "web-farmadrogas",
+  "version": "1.0.0",
+  "description": "Sitio institucional y catálogo de la Droguería Farmadrogas (Armenia, Quindío)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "author": "Jefferson Rubio Rincón",
+  "license": "MIT",
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "express": "^4.21.2",
+    "pg": "^8.13.1"
+  }
+}

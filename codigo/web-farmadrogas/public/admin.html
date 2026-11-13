@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Administración — Farmadrogas</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="barra">
+    <div class="contenedor barra-in">
+      <a href="/" class="logo"><span class="cruz">✚</span> Farmadrogas · Admin</a>
+      <nav><a href="/">Ver sitio</a></nav>
+    </div>
+  </header>
+
+  <main class="contenedor seccion dos-col">
+    <form id="form-producto" class="tarjeta">
+      <h2>Agregar producto</h2>
+      <input id="clave" type="password" placeholder="Clave de administrador" required>
+      <input name="nombre" placeholder="Nombre (ej. Diclofenaco 50 mg)" required>
+      <input name="presentacion" placeholder="Presentación (ej. Caja x 20 tabletas)">
+      <select name="categoria_id" id="categoria"></select>
+      <input name="precio" type="number" min="0" placeholder="Precio en pesos" required>
+      <input name="stock" type="number" min="0" placeholder="Unidades disponibles" value="0">
+      <label class="check"><input name="requiere_formula" type="checkbox"> Requiere fórmula médica</label>
+      <button class="btn" type="submit">Guardar en la base de datos</button>
+      <p id="resultado" class="ok" hidden></p>
+    </form>
+
+    <div class="tarjeta">
+      <h2>Estado del servicio</h2>
+      <pre id="estado" class="json">Cargando…</pre>
+      <h2>Mensajes recibidos</h2>
+      <button id="ver-mensajes" class="btn btn-sec" type="button">Ver mensajes</button>
+      <ul id="mensajes" class="mensajes"></ul>
+    </div>
+  </main>
+
+  <script>
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const clave = () => document.getElementById('clave').value;
+
+    fetch('/api/categorias').then((r) => r.json()).then((cats) => {
+      document.getElementById('categoria').innerHTML = cats.map((c) => `<option value="${c.id}">${esc(c.nombre)}</option>`).join('');
+    });
+    fetch('/api/estado').then((r) => r.json()).then((s) => {
+      document.getElementById('estado').textContent = JSON.stringify(s, null, 2);
+    });
+
+    document.getElementById('form-producto').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const d = Object.fromEntries(new FormData(e.target));
+      d.requiere_formula = e.target.requiere_formula.checked;
+      const r = await fetch('/api/productos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-admin-key': clave() },
+        body: JSON.stringify(d),
+      });
+      const out = await r.json();
+      const p = document.getElementById('resultado');
+      p.hidden = false;
+      p.className = r.ok ? 'ok' : 'error';
+      p.textContent = r.ok ? `✔ Guardado con id ${out.id}: ${out.nombre}` : `✖ ${out.error}`;
+      if (r.ok) { e.target.reset(); }
+    });
+
+    document.getElementById('ver-mensajes').addEventListener('click', async () => {
+      const r = await fetch('/api/mensajes', { headers: { 'x-admin-key': clave() } });
+      const ul = document.getElementById('mensajes');
+      if (!r.ok) { ul.innerHTML = '<li class="error">Escribe la clave de administrador arriba.</li>'; return; }
+      const lista = await r.json();
+      ul.innerHTML = lista.length
+        ? lista.map((m) => `<li><strong>${esc(m.nombre)}</strong> ${esc(m.telefono || '')}<br>${esc(m.mensaje)}<br><small>${new Date(m.creado_en).toLocaleString('es-CO')}</small></li>`).join('')
+        : '<li>No hay mensajes.</li>';
+    });
+  </script>
+</body>
+</html>
