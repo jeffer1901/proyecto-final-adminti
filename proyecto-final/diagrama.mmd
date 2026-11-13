@@ -1,0 +1,38 @@
+graph LR
+    subgraph RED["Red local Farmadrogas 192.168.1.0/24"]
+        R[Router<br/>192.168.1.1]
+        C1[pc-caja1<br/>Dominium Plus]
+        C2[pc-caja2<br/>Dominium Plus]
+        AD[pc-admin]
+        BO[pc-bodega]
+        LX[cli-linux<br/>Ubuntu]
+        DVR[DVR cámaras]
+        IMP1[Epson TM-T20<br/>facturas caja 1]
+        IMP2[Epson TM-T20<br/>facturas caja 2]
+        IMP3[Epson L360<br/>documentos]
+    end
+
+    subgraph SRV["srv-farmadrogas 192.168.1.10 — Ubuntu 26.04 LTS (VM VirtualBox)"]
+        subgraph DK["Dokploy (Docker)"]
+            T[Traefik<br/>80/443 + SSL]
+            P[Panel Dokploy<br/>:3000]
+            W[Web Farmadrogas<br/>Node.js]
+            DB[(PostgreSQL<br/>:5432)]
+        end
+        NTP[NTP :123/udp]
+        NFS[NFS :2049]
+        NIS[NIS dominio<br/>farmadrogas.local]
+        CUPS[CUPS :631]
+        SMB[Samba :445]
+    end
+
+    R --- SRV
+    T --> W
+    W --> DB
+    C1 & C2 & AD & BO -->|HTTPS| T
+    C1 & C2 & AD & BO -->|SMB| SMB
+    C1 & C2 & AD & BO -->|IPP| CUPS
+    C1 & C2 & AD & BO & LX & DVR -->|hora| NTP
+    LX -->|montaje| NFS
+    LX -->|login| NIS
+    CUPS --> IMP1 & IMP2 & IMP3
