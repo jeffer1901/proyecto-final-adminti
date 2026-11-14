@@ -10,7 +10,8 @@
 | 1 | Análisis y diseño → [`analisis.md`](analisis.md), [`diagrama.mmd`](diagrama.mmd) | ✅ |
 | 2 | Infraestructura base: VM, IP fija, NTP, Dokploy, DNS, SSL | ✅ |
 | 3 | Servicios — Parte A: Web + PostgreSQL | ✅ |
-| 3 | Servicios — Parte B y C: NFS, NIS, CUPS, Samba | ⏳ |
+| 3 | Servicios — Parte B: cliente Linux, NTP, NIS, NFS | ✅ |
+| 3 | Servicios — Parte C: CUPS, Samba | ⏳ |
 | 4 | Documentación final y presentación | ⏳ |
 
 ---
@@ -445,3 +446,285 @@ sudo docker exec -it $DB psql -U farmadrogas -d farmadrogas -c "SELECT nombre, m
 | `git push` rechazado (*fetch first*) | El repositorio en GitHub ya tenía contenido que no estaba en el equipo local | `git pull origin main --allow-unrelated-histories --no-rebase -X ours` y luego `git push` |
 | `docker exec` respondía *No such container* | Dokploy nombra el contenedor de la base con un prefijo y un sufijo aleatorio, así que el filtro `name=farmadrogas-db` no lo encontraba | Buscar el contenedor por imagen `postgres`, excluyendo la base interna de Dokploy |
 | Dokploy muestra la advertencia de dominio de la semana 2 | El dominio apunta a la IP local, no a la IP pública | Advertencia esperada en un servidor local; el sitio funciona por HTTPS |
+
+---
+
+# Semana 3 — Parte B: Cliente Linux, NTP, NIS y NFS
+
+## Arquitectura
+
+```
+        srv-farmadrogas 192.168.1.10                       cli-linux 192.168.1.30
+ ┌──────────────────────────────────────┐           ┌───────────────────────────────┐
+ │ NTP (ntpsec)          :123/udp  ─────┼── hora ──►│ chrony (cliente de hora)      │
+ │ NIS ypserv  dominio farmadrogas.local┼── login ─►│ ypbind  (rocio, alirio,       │
+ │   usuarios: rocio, alirio, daniel    │           │          daniel)              │
+ │ NFS  /srv/nfs/farmadrogas ───────────┼── montaje►│ /mnt/farmadrogas  (documentos)│
+ │      /srv/nfs/home       ────────────┼── montaje►│ /srv/nfs/home     (homes)     │
+ └──────────────────────────────────────┘           └───────────────────────────────┘
+```
+
+**Diseño:** NIS centraliza las cuentas de la droguería; NFS comparte los documentos (solo para el grupo `farmadrogas`) y las carpetas personales, que siguen al usuario a cualquier equipo. Como NIS entrega los mismos UID/GID en todos los equipos, los permisos de NFS coinciden en servidor y cliente.
+
+| Usuario | UID | Grupos | Rol |
+|---|---|---|---|
+| `rocio` | 1001 | `rocio`, `farmadrogas` (2000) | Propietaria |
+| `alirio` | 1002 | `alirio`, `farmadrogas` (2000) | Caja |
+| `daniel` | 1003 | `daniel`, `farmadrogas` (2000) | Caja |
+
+Archivos de configuración: [`codigo/semana3/`](codigo/semana3/).
+
+---
+
+## 1. Equipo cliente `cli-linux`
+
+VM en VirtualBox con Ubuntu 26.04.1 LTS (2 vCPU, 4 GB RAM, 25 GB, adaptador puente), usuario local `cliente`, OpenSSH e IP fija configurada con NetworkManager:
+
+```bash
+CON=$(nmcli -g NAME,DEVICE con show --active | grep ':enp0s3$' | cut -d: -f1)
+sudo nmcli con mod "$CON" ipv4.method manual ipv4.addresses 192.168.1.30/24 ipv4.gateway 192.168.1.1 ipv4.dns "8.8.8.8 1.1.1.1"
+sudo nmcli con up "$CON"
+```
+
+![S3B-01 — VM cliente cli-linux](capturas/semana3/s3b-01-vm-cliente.png)
+
+Resolución de nombres entre los dos equipos (`/etc/hosts` en ambos):
+
+```
+192.168.1.10  srv-farmadrogas srv-farmadrogas.farmadrogas.local
+192.168.1.30  cli-linux
+```
+
+![S3B-02 — Nombres configurados y conectividad entre servidor y cliente](capturas/semana3/s3b-02-hosts.png)
+
+---
+
+## 2. NTP: el cliente se sincroniza con el servidor de la droguería
+
+Ubuntu 26.04 usa **chrony** como cliente de hora y trae servidores NTP de internet por defecto. Se comentaron esas fuentes y se dejó **solo** el servidor de Farmadrogas:
+
+```bash
+sudo timedatectl set-timezone America/Bogota
+sudo sed -i -E 's/^\s*(pool|server|peer)\b/#&/' /etc/chrony/chrony.conf
+echo "server 192.168.1.10 iburst prefer" | sudo tee -a /etc/chrony/chrony.conf
+sudo systemctl restart chrony
+chronyc sources -v
+chronyc tracking
+```
+
+**Resultado:** única fuente `^* srv-farmadrogas` (sincronizado), `Reference ID : C0A8010A (srv-farmadrogas)` (= 192.168.1.10 en hexadecimal), stratum 4 (un nivel por debajo del servidor) y desfase de ~0,0001 s.
+
+![S3B-03 — Cliente sincronizado con el servidor NTP de la droguería](capturas/semana3/s3b-03-chrony.png)
+
+---
+
+## 3. NIS: servidor de cuentas centralizadas
+
+### 3.1 Instalación y dominio
+
+```bash
+sudo apt install -y nis
+echo "farmadrogas.local" | sudo tee /etc/defaultdomain
+sudo domainname farmadrogas.local
+```
+
+`/etc/ypserv.securenets` — solo localhost y la red de la droguería pueden consultar NIS:
+
+```
+255.0.0.0       127.0.0.0
+255.255.255.0   192.168.1.0
+```
+
+### 3.2 Grupo y usuarios
+
+Script completo: [`codigo/semana3/servidor-usuarios.sh`](codigo/semana3/servidor-usuarios.sh).
+
+```bash
+sudo groupadd -g 2000 farmadrogas
+sudo mkdir -p /srv/nfs/home
+for u in rocio alirio daniel; do
+  sudo useradd -m -d /srv/nfs/home/$u -s /bin/bash -G farmadrogas $u
+  echo "$u:Farma2026" | sudo chpasswd
+done
+```
+
+### 3.3 Servidor maestro
+
+```bash
+sudo systemctl enable --now rpcbind ypserv
+sudo /usr/lib/yp/ypinit -m
+sudo systemctl enable --now yppasswdd
+```
+
+![S3B-04 — ypinit: srv-farmadrogas configurado como servidor NIS maestro](capturas/semana3/s3b-04-ypinit.png)
+
+```bash
+rpcinfo -p localhost | grep -E 'ypserv|yppasswdd|portmapper'
+sudo ypcat -d farmadrogas.local -h localhost passwd | grep -E 'rocio|alirio|daniel'
+```
+
+**Resultado:** `ypserv` y `yppasswdd` registrados en RPC; el mapa `passwd` contiene los tres usuarios.
+
+![S3B-05 — Servicios NIS registrados y mapa passwd](capturas/semana3/s3b-05-nis-servidor.png)
+
+---
+
+## 4. NFS: carpetas compartidas
+
+```bash
+sudo apt install -y nfs-kernel-server
+sudo mkdir -p /srv/nfs/farmadrogas/{Reportes,Proveedores,Respaldos}
+sudo chown -R root:farmadrogas /srv/nfs/farmadrogas
+sudo chmod -R 2770 /srv/nfs/farmadrogas
+```
+
+**Permisos `2770`:** dueño y grupo `farmadrogas` leen y escriben; el resto **no tiene acceso**. El bit setgid (`2`) hace que todo archivo nuevo pertenezca al grupo `farmadrogas`, así todos los empleados pueden abrirlo.
+
+`/etc/exports`:
+
+```
+/srv/nfs/farmadrogas  192.168.1.0/24(rw,sync,no_subtree_check,root_squash)
+/srv/nfs/home         192.168.1.0/24(rw,sync,no_subtree_check,root_squash)
+```
+
+**¿Por qué `root_squash`?** La guía del curso usa `no_root_squash`; aquí se eligió `root_squash` para que el root de un equipo cliente se convierta en `nobody` en las carpetas compartidas. Así, un usuario con permisos de administrador en un PC de la droguería no puede leer ni borrar todo lo del servidor.
+
+```bash
+sudo exportfs -ra
+sudo systemctl enable --now nfs-kernel-server
+sudo exportfs -v
+```
+
+![S3B-06 — Permisos drwxrws--- y carpetas exportadas](capturas/semana3/s3b-06-nfs-permisos.png)
+
+(El `Permission denied` del `ls` en esta captura es esperado: el administrador `jeffer` no pertenece al grupo `farmadrogas`.)
+
+---
+
+## 5. Configuración del cliente
+
+Detalle completo: [`codigo/semana3/cliente-config.txt`](codigo/semana3/cliente-config.txt).
+
+### 5.1 Unirse al dominio NIS
+
+```bash
+sudo apt install -y nis nfs-common
+sudo systemctl disable --now ypserv
+echo "farmadrogas.local" | sudo tee /etc/defaultdomain
+echo "domain farmadrogas.local server 192.168.1.10" | sudo tee /etc/yp.conf
+sudo systemctl enable --now rpcbind ypbind
+```
+
+En `/etc/nsswitch.conf` se agregó `nis` a `passwd`, `group`, `shadow` y `hosts`. Además, como `systemd-logind` tiene la red bloqueada por defecto, se le permitió consultar la red de la droguería:
+
+```ini
+# /etc/systemd/system/systemd-logind.service.d/nis.conf
+[Service]
+IPAddressAllow=192.168.1.0/24
+```
+
+```bash
+ypwhich
+ypcat passwd | grep -E 'rocio|alirio|daniel'
+getent passwd rocio
+id alirio
+```
+
+**Resultado:** el cliente está enlazado a `192.168.1.10` y reconoce a los tres usuarios, aunque **no existen localmente** en el cliente.
+
+![S3B-07 — El cliente resuelve los usuarios desde el servidor NIS](capturas/semana3/s3b-07-nis-cliente.png)
+
+### 5.2 Montajes NFS persistentes
+
+`/etc/fstab`:
+
+```
+192.168.1.10:/srv/nfs/farmadrogas  /mnt/farmadrogas  nfs  defaults,_netdev  0  0
+192.168.1.10:/srv/nfs/home         /srv/nfs/home     nfs  defaults,_netdev  0  0
+```
+
+```bash
+sudo mkdir -p /mnt/farmadrogas /srv/nfs/home
+sudo mount -a
+showmount -e 192.168.1.10
+df -hT | grep nfs
+```
+
+![S3B-08 — Exportaciones del servidor y montajes nfs4 en el cliente](capturas/semana3/s3b-08-montajes.png)
+
+---
+
+## 6. Pruebas: NIS + NFS trabajando juntos
+
+### 6.1 Autenticación centralizada: Rocío inicia sesión en el cliente
+
+```powershell
+ssh rocio@192.168.1.30
+```
+
+La cuenta `rocio` solo existe en el servidor, pero inicia sesión en `cli-linux` con su contraseña. Su `id` muestra el grupo `farmadrogas` (2000) y crea el inventario en la carpeta compartida:
+
+```bash
+id
+echo "Inventario de noviembre" > /mnt/farmadrogas/Reportes/inventario-nov.txt
+ls -l /mnt/farmadrogas/Reportes/
+```
+
+**Resultado:** el archivo queda con dueño `rocio` y grupo `farmadrogas` (por el setgid).
+
+![S3B-09 — Rocío autenticada por NIS en cli-linux y escribiendo en NFS](capturas/semana3/s3b-09-rocio.png)
+
+### 6.2 Permisos de grupo: Alirio edita el inventario, pero no ve lo privado
+
+```bash
+cat /mnt/farmadrogas/Reportes/inventario-nov.txt
+echo "Revisado por Alirio" >> /mnt/farmadrogas/Reportes/inventario-nov.txt
+cat ~rocio/notas.txt
+```
+
+**Resultado:** Alirio (grupo `farmadrogas`) lee y modifica el inventario; las notas personales de Rocío le responden **Permission denied**.
+
+![S3B-10 — Alirio edita el archivo compartido; la carpeta personal de Rocío es privada](capturas/semana3/s3b-10-alirio.png)
+
+### 6.3 Sin acceso para quien no es de la droguería
+
+```bash
+ls /mnt/farmadrogas        # usuario local "cliente" (no pertenece al grupo)
+sudo ls /mnt/farmadrogas   # root del cliente (root_squash → nobody)
+```
+
+**Resultado:** ambos reciben **Permission denied**. En el servidor, el administrador `jeffer` tampoco puede entrar sin `sudo`, porque no es del grupo.
+
+![S3B-11 — Usuario ajeno y root del cliente sin acceso](capturas/semana3/s3b-11-sin-acceso.png)
+
+### 6.4 El archivo vive en el servidor
+
+```bash
+sudo ls -l /srv/nfs/farmadrogas/Reportes/
+sudo cat /srv/nfs/farmadrogas/Reportes/inventario-nov.txt
+```
+
+**Resultado:** `inventario-nov.txt` con dueño `rocio`, grupo `farmadrogas`, y el contenido escrito por Rocío y Alirio desde el cliente.
+
+![S3B-12 — Archivo creado desde el cliente, almacenado en el servidor](capturas/semana3/s3b-12-servidor-archivo.png)
+
+---
+
+## 7. Verificación (Parte B)
+
+| Requisito | Evidencia | Estado |
+|---|---|---|
+| NTP: clientes sincronizados con el servidor | S3B-03 (Linux) y captura 12 de la semana 2 (Windows) | ✅ |
+| NIS: servicio activo | S3B-04, S3B-05 | ✅ |
+| NIS: clientes se autentican con NIS | S3B-07, S3B-09, S3B-10 | ✅ |
+| NFS: directorio montado en el cliente (persistente en `fstab`) | S3B-06, S3B-08 | ✅ |
+| NFS: permisos correctos | S3B-09 a S3B-12 | ✅ |
+
+## 8. Problemas encontrados y soluciones
+
+| Problema | Causa | Solución |
+|---|---|---|
+| El cliente se sincronizaba con servidores NTP de internet y no con el de la droguería | Ubuntu 26.04 trae fuentes NTP predeterminadas en chrony y elige la que considera mejor | Comentar las líneas `pool`/`server` de `chrony.conf` y dejar solo `server 192.168.1.10` |
+| Tras comentar las fuentes, chrony quedó sin ningún servidor (`Reference ID 00000000`) | Se desactivó la línea `sourcedir` que también cargaba `/etc/chrony/sources.d` | Agregar `server 192.168.1.10 iburst prefer` directamente al final de `chrony.conf` |
+| En el cliente `/mnt/farmadrogas/Reportes` respondía *No such file or directory* | El montaje NFS del cliente no reflejaba las subcarpetas creadas en el servidor | `sudo umount /mnt/farmadrogas && sudo mount -a` para volver a montar |
+| `ls /srv/nfs/farmadrogas/*` como `jeffer` en el servidor da *Permission denied* | El administrador no pertenece al grupo `farmadrogas` | Comportamiento esperado; para revisar se usa `sudo` |

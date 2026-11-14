@@ -1,0 +1,3 @@
+# /etc/ypserv.securenets (servidor) — solo localhost y la red de la droguería consultan NIS
+255.0.0.0       127.0.0.0
+255.255.255.0   192.168.1.0
