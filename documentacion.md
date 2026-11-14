@@ -9,7 +9,8 @@
 |---|---|---|
 | 1 | Análisis y diseño → [`analisis.md`](analisis.md), [`diagrama.mmd`](diagrama.mmd) | ✅ |
 | 2 | Infraestructura base: VM, IP fija, NTP, Dokploy, DNS, SSL | ✅ |
-| 3 | Servicios: Web + PostgreSQL, NFS, NIS, CUPS, Samba | ⏳ |
+| 3 | Servicios — Parte A: Web + PostgreSQL | ✅ |
+| 3 | Servicios — Parte B y C: NFS, NIS, CUPS, Samba | ⏳ |
 | 4 | Documentación final y presentación | ⏳ |
 
 ---
@@ -290,3 +291,157 @@ Se tomó la instantánea `semana2-base-ok` en VirtualBox como punto de restaurac
 | SSH mostró `REMOTE HOST IDENTIFICATION HAS CHANGED` | Esa IP la había usado antes otra VM y Windows tenía guardada su huella | `ssh-keygen -R <IP>` y volver a conectar |
 | Se perdió la conexión SSH al aplicar la IP fija | La IP del servidor cambió de la asignada por DHCP a `192.168.1.10` | Reconectar con `ssh jeffer@192.168.1.10` |
 | Dokploy muestra *"Domain resolves to 192.168.1.10 but should point to 152.202.10.21…"* | Dokploy compara el DNS con la IP pública porque asume un servidor expuesto a Internet (para Let's Encrypt) | Es solo una advertencia: el servidor es local por diseño, Traefik enruta por nombre de host y el sitio funciona por HTTPS |
+
+---
+
+# Semana 3 — Parte A: Web de Farmadrogas + Base de datos PostgreSQL
+
+## Arquitectura
+
+```
+Navegador ──HTTPS──► Traefik ──► web-farmadrogas (Node.js, puerto 3000) ──► farmadrogas-db (PostgreSQL)
+                    (Dokploy)        código desde GitHub                         red interna de Docker
+```
+
+| Componente | Detalle |
+|---|---|
+| Aplicación | `web-farmadrogas` — Node.js 22 + Express, imagen construida con [`Dockerfile`](codigo/web-farmadrogas/Dockerfile) |
+| Código | [`codigo/web-farmadrogas/`](codigo/web-farmadrogas/) en este repositorio |
+| Base de datos | `farmadrogas-db` — PostgreSQL 18 creado desde Dokploy |
+| Esquema | [`sql/init.sql`](codigo/web-farmadrogas/sql/init.sql): tablas `categorias`, `productos`, `mensajes` |
+| Dominio | `https://farmadrogas.192.168.1.10.sslip.io` → contenedor puerto 3000 |
+
+**Funciones de la web:** información de la droguería (servicios, horario, ubicación), **catálogo con buscador y filtro por categoría** leído desde PostgreSQL, formulario de contacto que guarda en la base de datos, panel `/admin.html` protegido con clave para agregar productos, y endpoint `/api/estado` que verifica la conexión con la base.
+
+**Decisión de diseño:** el puerto 5432 de PostgreSQL **no se expone** a la red local. Solo la aplicación accede a la base por la red interna de Docker, así ningún equipo de la droguería puede conectarse directamente a ella.
+
+---
+
+## 1. Código en GitHub
+
+El código de la web se subió a este repositorio; Dokploy lo descarga desde aquí para construir la imagen.
+
+```powershell
+git add .
+git commit -m "Semana 3A: web de Farmadrogas con PostgreSQL"
+git push
+```
+
+![S3A-01 — Repositorio en GitHub](capturas/semana3/s3a-01-github.png)
+
+---
+
+## 2. Base de datos PostgreSQL en Dokploy
+
+Proyecto **Farmadrogas** → **Create Service** → **Database** → **PostgreSQL**:
+
+| Campo | Valor |
+|---|---|
+| Name | `farmadrogas-db` |
+| Database Name | `farmadrogas` |
+| Database User | `farmadrogas` |
+| Password | (definida por el administrador) |
+
+Se desplegó con **Deploy** y se copió la **Internal Connection URL** de *Internal Credentials* para conectar la aplicación.
+
+![S3A-02 — Base de datos farmadrogas-db desplegada y sus credenciales internas](capturas/semana3/s3a-02-db-creada.png)
+
+---
+
+## 3. Aplicación web en Dokploy
+
+1. Se quitó el dominio a la aplicación de prueba `web-prueba` (nginx) y se detuvo.
+2. **Create Service → Application:** `web-farmadrogas`.
+3. **Provider:** GitHub, repositorio `proyecto-final-adminti`, rama `main`, **Build Path** `/codigo/web-farmadrogas`, despliegue automático *On Push*. **Build Type:** Dockerfile.
+
+![S3A-04 — Origen del código y ruta de construcción](capturas/semana3/s3a-04-provider.png)
+
+4. **Environment:**
+
+```
+DATABASE_URL=postgresql://farmadrogas:********@<host-interno-de-farmadrogas-db>:5432/farmadrogas
+ADMIN_KEY=********
+```
+
+5. **Deploy.** Al arrancar, la aplicación crea las tablas y carga los productos iniciales:
+
+```
+Datos iniciales cargados: 16 productos
+Web Farmadrogas escuchando en el puerto 3000
+```
+
+![S3A-06 — Logs de la aplicación: datos cargados y servidor escuchando](capturas/semana3/s3a-06-logs-app.png)
+
+---
+
+## 4. Dominio con HTTPS
+
+**Domains → Add Domain:** host `farmadrogas.192.168.1.10.sslip.io`, path `/`, **container port 3000**, HTTPS activado, certificado autofirmado (*None*).
+
+![S3A-08 — Dominio de la aplicación con HTTPS y puerto 3000](capturas/semana3/s3a-08-dominio.png)
+
+---
+
+## 5. Pruebas
+
+### 5.1 Sitio accesible por HTTPS
+
+![S3A-09 — Página de inicio de Farmadrogas por HTTPS](capturas/semana3/s3a-09-sitio-inicio.png)
+
+### 5.2 Catálogo leído desde PostgreSQL
+
+![S3A-10 — Catálogo de productos con precios y disponibilidad](capturas/semana3/s3a-10-catalogo.png)
+
+### 5.3 Escritura en la base de datos desde la web
+
+Desde `/admin.html` se agregó el producto **Diclofenaco 50 mg**; la base le asignó el **id 17**.
+
+![S3A-11 — Producto guardado desde el panel de administración](capturas/semana3/s3a-11-admin-guardado.png)
+
+El producto nuevo aparece de inmediato en el buscador del catálogo:
+
+![S3A-12 — Búsqueda "diclo" mostrando el producto nuevo](capturas/semana3/s3a-12-producto-nuevo.png)
+
+### 5.4 Estado de la conexión (`/api/estado`)
+
+Responde `"base_de_datos": "conectada"`, la versión de PostgreSQL, el nombre de la base y `"productos": 17`.
+
+![S3A-13 — Endpoint /api/estado](capturas/semana3/s3a-13-api-estado.png)
+
+### 5.5 Verificación directa en PostgreSQL
+
+Desde el servidor, entrando al contenedor de la base:
+
+```bash
+DB=$(sudo docker ps --format "{{.Names}} {{.Image}}" | grep -i postgres | grep -v '^dokploy-postgres' | awk '{print $1}' | head -n1)
+sudo docker exec -it $DB psql -U farmadrogas -d farmadrogas -c "\dt"
+sudo docker exec -it $DB psql -U farmadrogas -d farmadrogas -c "SELECT id, nombre, precio, stock FROM productos ORDER BY id DESC LIMIT 5;"
+sudo docker exec -it $DB psql -U farmadrogas -d farmadrogas -c "SELECT nombre, mensaje, creado_en FROM mensajes;"
+```
+
+**Resultado:** existen las 3 tablas (`categorias`, `mensajes`, `productos`) con dueño `farmadrogas`, y el último registro de `productos` es el **Diclofenaco 50 mg (id 17)** creado desde la web, lo que confirma que la aplicación escribe en la base de datos.
+
+![S3A-14 — Tablas y registros consultados con psql](capturas/semana3/s3a-14-psql.png)
+
+### 5.6 Servicios del proyecto en Dokploy
+
+![S3A-17 — Proyecto Farmadrogas con web-farmadrogas y farmadrogas-db](capturas/semana3/s3a-17-proyecto-dokploy.png)
+
+---
+
+## 6. Verificación (Parte A)
+
+| Requisito | Evidencia | Estado |
+|---|---|---|
+| App desplegada en Dokploy desde Git | S3A-04, S3A-06 | ✅ |
+| Sitio accesible por HTTPS con contenido de la empresa | S3A-09, S3A-10 | ✅ |
+| Base de datos PostgreSQL creada vía Dokploy | S3A-02 | ✅ |
+| Base de datos conectada a la app (lectura y escritura) | S3A-10 a S3A-14 | ✅ |
+
+## 7. Problemas encontrados y soluciones
+
+| Problema | Causa | Solución |
+|---|---|---|
+| `git push` rechazado (*fetch first*) | El repositorio en GitHub ya tenía contenido que no estaba en el equipo local | `git pull origin main --allow-unrelated-histories --no-rebase -X ours` y luego `git push` |
+| `docker exec` respondía *No such container* | Dokploy nombra el contenedor de la base con un prefijo y un sufijo aleatorio, así que el filtro `name=farmadrogas-db` no lo encontraba | Buscar el contenedor por imagen `postgres`, excluyendo la base interna de Dokploy |
+| Dokploy muestra la advertencia de dominio de la semana 2 | El dominio apunta a la IP local, no a la IP pública | Advertencia esperada en un servidor local; el sitio funciona por HTTPS |

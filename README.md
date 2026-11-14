@@ -37,10 +37,12 @@ proyecto-final/
 ├── documentacion.md   # Documentación técnica con capturas
 ├── README.md
 ├── capturas/          # Evidencias por semana
-│   └── semana2/
+│   ├── semana2/
+│   └── semana3/
 └── codigo/            # Código y archivos de configuración
     ├── web-farmadrogas/   # Web de la droguería (Node.js + Express + PostgreSQL, Dockerfile para Dokploy)
     └── semana2/
+
         ├── 01-farmadrogas.yaml     # Netplan (IP estática)
         └── ntp-farmadrogas.conf    # Configuración NTPsec
 ```
