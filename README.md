@@ -2,12 +2,16 @@
 
 Proyecto final del curso **Administración de Infraestructura de TI** (Universidad del Quindío, Ingeniería de Sistemas y Computación).
 
-**Estudiante:** Jefferson Rubio Rincón — [@jeffer1901](https://github.com/jeffer1901)
+**Integrantes:**
+- Tatiana Lisbeth Zamora Andrade
+- Miguel Angel Villegas Villada
+- Jefferson Rubio Rincón — [@jeffer1901](https://github.com/jeffer1901)
+
 **Profesor:** Maycol Cárdenas Acevedo
 
 ## Descripción
 
-Como consultor de infraestructura TI se diseña e implementa, en un servidor local, la infraestructura de servicios de la **Droguería Farmadrogas** (Armenia, Quindío): web institucional con base de datos sobre **Dokploy**, y servicios Linux de hora (NTP), archivos (NFS y Samba), autenticación (NIS) e impresión (CUPS). El sistema de facturación actual (Dominium Plus) no se modifica.
+Como consultores de infraestructura TI, diseñamos e implementamos, en un servidor local, la infraestructura de servicios de la **Droguería Farmadrogas** (Armenia, Quindío): web institucional con base de datos sobre **Dokploy**, y servicios Linux de hora (NTP), archivos (NFS y Samba), autenticación (NIS) e impresión (CUPS). El sistema de facturación actual (Dominium Plus) no se modifica.
 
 ## Servidor
 
@@ -26,7 +30,7 @@ Como consultor de infraestructura TI se diseña e implementa, en un servidor loc
 |---|---|---|
 | 1 | Análisis y diagrama | ✅ |
 | 2 | Dokploy + NTP + DNS + SSL | ✅ |
-| 3 | Web + PostgreSQL ✅ · NTP cliente, NIS, NFS ✅ · CUPS, Samba ⏳ | 🔄 |
+| 3 | Web + PostgreSQL, NTP cliente, NIS, NFS, CUPS, Samba | ✅ |
 | 4 | Documentación final y presentación | ⏳ |
 
 ## Estructura
@@ -43,5 +47,5 @@ proyecto-final/
 └── codigo/              # Código y archivos de configuración
     ├── web-farmadrogas/ # Web de la droguería (Node.js + Express + PostgreSQL, Dockerfile)
     ├── semana2/         # Netplan (IP estática) y NTPsec
-    └── semana3/         # NFS, NIS y configuración del cliente
+    └── semana3/         # NFS, NIS, CUPS, Samba y configuración del cliente
 ```
